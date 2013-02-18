@@ -1,0 +1,477 @@
+﻿//
+// Miranda is a tiny wiki
+//
+// Frank Hale <frankhale@gmail.com>
+// 17 February 2013
+//
+
+#region LICENSE - GPL version 3 <http://www.gnu.org/licenses/gpl-3.0.html>
+//
+// GNU GPLv3 quick guide: http://www.gnu.org/licenses/quick-guide-gplv3.html
+//
+// GNU GPLv3 license <http://www.gnu.org/licenses/gpl-3.0.html>
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program.  If not, see <http://www.gnu.org/licenses/>.
+//
+#endregion
+
+using Aurora;
+using Aurora.Extra;
+using Aurora.Models;
+using Aurora.Models.Massive;
+using MarkdownSharp;
+using System;
+using System.Collections.Generic;
+using System.Configuration;
+using System.Linq;
+using System.Reflection;
+using System.Runtime.InteropServices;
+using System.Text;
+using System.Text.RegularExpressions;
+using System.Web;
+using Wiki.Infrastructure.Core;
+
+namespace Wiki.Controllers
+{
+	public class Wiki : Controller
+	{
+		private static Regex matchSpecialCharacters = new Regex("(?:[^a-z0-9 ]|(?<=['\"])s)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+		private static Regex matchWhitespaces = new Regex(@"\s+", RegexOptions.Compiled);
+		private static Regex csharp = new Regex(@"\[cs\](?<block>[\s\S]+?)\[/cs\]", RegexOptions.Compiled);
+		private static Regex markdown = new Regex(@"\[md\](?<block>[\s\S]+?)\[/md\]", RegexOptions.Compiled);
+
+		public Wiki()
+		{
+			OnPreActionEvent += new EventHandler<RouteHandlerEventArgs>(Wiki_PreActionEvent);
+		}
+
+		void Wiki_PreActionEvent(object sender, RouteHandlerEventArgs e)
+		{
+			ViewBag.appTitle = ConfigurationManager.AppSettings["title"];
+
+			if (CurrentUser != null)
+			{
+				ViewBag.currentUser = CurrentUser.Name;
+				ViewBag.logOff = new HtmlAnchor("/Logoff", "[Logoff]").ToString();
+			}
+		}
+
+		#region LOGON / LOGOFF
+#if USERPASS
+		[Http(ActionType.GetOrPost, "/Logon")]
+		public ViewResult Logon(Authentication auth, IData dc, UnameAndPassword upw)
+		{
+			if (auth.Authenticated)
+			{
+				ViewBag.logonForm = "w00t!";
+			}
+			else
+				ViewBag.logonForm = RenderFragment("UserNameAndPasswordForm");
+
+			return View();
+		}
+#elif OPENAUTH
+		[Http(ActionType.GetOrPost, "/Logon")]
+		public ViewResult Logon(Authentication auth, IData dc, OpenAuthLogonType logonType)
+		{
+			string message = string.Empty;
+
+			if (auth.Authenticated)
+			{
+				WikiUser user = dc.GetUserByIdentifier(auth.Identifier);
+
+				if (user != null)
+				{
+					LogOn(user.UserName, new string[] { "Admin" }, user);
+					Redirect("/Index");
+				}
+				else
+				{
+					message = "You Do Not Have To This System";
+				}
+			}
+
+			if (!string.IsNullOrEmpty(message))
+				ViewBag.message = message;
+
+			ViewBag.logonForm = RenderFragment("OpenAuthForm");
+
+			return View();
+		}
+#elif ACTIVEDIRECTORY
+		[Http(ActionType.Get, "/Logon")]
+		public ViewResult Logon(Authentication auth, IData dc)
+		{
+			if (auth.Authenticated && CurrentUser != null)
+				Redirect("/Index");
+
+			string message = GetQueryString("message", true);
+
+			if (!string.IsNullOrEmpty(message))
+				ViewBag.message = message;
+
+			ViewBag.logonForm = RenderFragment("CACForm");
+
+			return View();
+		}
+
+		[Http(ActionType.Post, "/Go")]
+		public void Go(Authentication auth, IData dc)
+		{
+			if (CurrentUser != null)
+				Redirect("/Index");
+
+			if (auth.Authenticated)
+			{
+				WikiUser user = dc.GetUserByIdentifier(auth.Identifier);
+
+				if (auth.Authenticated && user != null)
+				{
+					LogOn(user.UserName, new string[] { "Admin" }, user);
+					Redirect("/Index");
+				}
+			}
+
+			Redirect(string.Format("/Logon?message={0}", "You Do Not Have Access To This System".ToURLEncodedString()));
+		}
+#endif
+
+		[Http(ActionType.Get, "/Logoff")]
+		public void LogOff(Authentication auth, IData dc)
+		{
+			LogOff();
+
+#if OPENAUTH || USERPASS
+			auth.Abandon();
+#endif
+
+			Redirect("/Logon");
+		}
+		#endregion
+
+		[Http(ActionType.Get, "/Index", ActionSecurity.Secure, RedirectWithoutAuthorizationTo = "/Logon", Roles = "User|Admin")]
+		public ViewResult Index(Authentication auth, IData dc)
+		{
+			ViewBag.currentUser = CurrentUser.Name;
+			ViewBag.content = WikiList(dc); //WikiGroupList(dc);
+
+			return View();
+		}
+
+		[Http(ActionType.Get, "/Add", ActionSecurity.Secure, RedirectWithoutAuthorizationTo = "/Logon", Roles = "Admin")]
+		public ViewResult Add(Authentication auth, IData dc)
+		{
+			FragBag.tagitJS = RenderFragment("TagitJS");
+
+			FragBag.TagitJS.availableTags = "[]";
+			FragBag.TagitJS.preselectedTags = "[]";
+			ViewBag.tagitJS = RenderFragment("TagitJS");
+			ViewBag.wikiPageForm = RenderFragment("WikiPageForm");
+
+			return View();
+		}
+
+		[Http(ActionType.Get, "/Add", ActionSecurity.Secure, RedirectWithoutAuthorizationTo = "/Logon", Roles = "Admin")]
+		public ViewResult Add(Authentication auth, IData dc, string alias)
+		{
+			if (!string.IsNullOrEmpty(alias))
+			{
+				FragBag.WikiPageForm.title = alias.Replace("wiki-", string.Empty)
+														 .Replace('-', ' ')
+														 .Wordify()
+														 .ToTitleCase();
+			}
+
+			FragBag.TagitJS.availableTags = "[]";
+			FragBag.TagitJS.preselectedTags = "[]";
+			ViewBag.tagitJS = RenderFragment("TagitJS");
+			ViewBag.wikiPageForm = RenderFragment("WikiPageForm");
+
+			return View();
+		}
+
+		[Http(ActionType.Get, "/Show", ActionSecurity.Secure, RedirectWithoutAuthorizationTo = "/Logon", Roles = "User|Admin")]
+		public ViewResult Show(Authentication auth, IData dc, [ActionParameterTransform("WikiPageTransform")] WikiPage p)
+		{
+			if (p != null)
+			{
+				FragBag.WikiTitle.title = p.Title;
+
+				ViewBag.id = p.ID;
+				ViewBag.title = RenderFragment("WikiTitle");
+				ViewBag.appTitle = p.Title;
+
+				p.Body = p.Body.ToHtmlEncodedString();
+
+				MatchCollection csBlocks = csharp.Matches(p.Body);
+				MatchCollection mdBlocks = markdown.Matches(p.Body);
+
+				#region C# BLOCKS
+				foreach (Match m in csBlocks)
+				{
+					FragBag.CSharpCodeBlock.code = m.Groups["block"].Value.Trim().ToHtmlDecodedString();
+
+					p.Body = p.Body.Replace(m.Value, RenderFragment("CSharpCodeBlock"));
+				}
+				#endregion
+
+				#region MARKDOWN BLOCKS
+				foreach (Match m in mdBlocks)
+				{
+					p.Body = p.Body.Replace(m.Value, new Markdown().Transform(m.Groups["block"].Value.Trim().ToHtmlDecodedString()));
+				}
+				#endregion
+
+				ViewBag.data = p.Body;
+
+				FragBag.EditDeleteMenuItems.edit = p.ID;
+				FragBag.EditDeleteMenuItems.delete = p.ID;
+
+				ViewBag.menu = RenderFragment("EditDeleteMenuItems");
+
+				string tags = string.Join(", ", dc.GetPageTags(p).Select(x => x.Name));
+
+				if (!string.IsNullOrEmpty(tags))
+				{
+					FragBag.FiledUnder.tags = tags;
+					ViewBag.filedUnder = RenderFragment("FiledUnder");
+				}
+			}
+			else
+			{
+				ViewBag.title = "Error!";
+				ViewBag.data = "The requested wiki does not exist";
+			}
+
+			return View();
+		}
+
+		[Http(ActionType.Get, "/Edit", ActionSecurity.Secure, RedirectWithoutAuthorizationTo = "/Logon", Roles = "Admin")]
+		public ViewResult Edit(Authentication auth, IData dc, int id)
+		{
+			WikiPage p = dc.GetPage(id);
+
+			if (p != null)
+			{
+				FragBag.WikiPageForm.id = p.ID;
+				FragBag.WikiPageForm.title = p.Title;
+				FragBag.WikiPageForm.data = p.Body;
+				FragBag.TagitJS.preselectedTags = GetWikiPageTagsAsJSArray(dc, p);
+			}
+
+			FragBag.TagitJS.availableTags = "[]";
+			ViewBag.tagitJS = RenderFragment("TagitJS");
+			ViewBag.wikiPageForm = RenderFragment("WikiPageForm");
+
+			return View();
+		}
+
+		[Http(ActionType.Get, "/Delete", ActionSecurity.Secure, RedirectWithoutAuthorizationTo = "/Logon", Roles = "Admin")]
+		public void Delete(Authentication auth, IData dc, int id)
+		{
+			WikiPage p = dc.GetPage(id);
+
+			if (p != null)
+			{
+				string alias = "/" + p.Alias;
+
+				if (GetAllRouteAliases().Contains(alias))
+					RemoveRoute(alias);
+
+				dc.DeletePage(id);
+			}
+
+			Redirect("/Index");
+		}
+
+		[Http(ActionType.Post, "/Save", ActionSecurity.Secure, RedirectWithoutAuthorizationTo = "/Logon", Roles = "Admin")]
+		public void Save(Authentication auth, IData dc, PageData data)
+		{
+			if (data.IsValid)
+			{
+				WikiUser u = CurrentUser.ArcheType as WikiUser;
+
+				bool edit = false;
+
+				WikiPage p = null;
+
+				if (data.ID != null)
+				{
+					p = dc.GetPage(data.ID.Value);
+
+					if (p == null)
+						p = new WikiPage();
+					else
+						edit = true;
+				}
+				else
+					p = new WikiPage();
+
+				p.AuthorID = u.ID;
+				p.Body = data.Data;
+				p.ModifiedOn = DateTime.Now;
+				p.Title = data.Title;
+
+				if (!edit)
+				{
+					p.CreatedOn = DateTime.Now;
+
+					Func<string, string> aliasify = delegate(string s)
+					{
+						s = matchSpecialCharacters.Replace(s, string.Empty).Trim();
+						s = matchWhitespaces.Replace(s, "-");
+
+						return s;
+					};
+
+					p.Alias = aliasify(data.Title);
+
+					dc.AddPage(p);
+				}
+				else
+					dc.UpdatePage(p);
+
+				// DO TAG related things here
+				dc.DeletePageTags(p);
+
+				if (!string.IsNullOrEmpty(data.Tags))
+				{
+					List<string> allTags = dc.GetAllTags().Select(x => x.Name).ToList();
+					List<string> incomingTags = data.Tags.Split(',').ToList();
+
+					if (incomingTags.Count() > 0)
+					{
+						var tagDiffs = (allTags.Count() > 0) ? incomingTags.Except(allTags) : incomingTags;
+
+						if (tagDiffs.Count() > 0)
+						{
+							foreach (var t in tagDiffs)
+								dc.AddTag(t);
+						}
+
+						foreach (var it in incomingTags)
+						{
+							dc.AddPageTag(p, it);
+						}
+					}
+				}
+
+				string alias = "/" + p.Alias;
+
+				if (!GetAllRouteAliases().Contains(alias))
+					AddRoute(alias, "Wiki", "Show", p.ID.ToString());
+
+				Redirect(alias);
+			}
+
+			ViewBag.error = data.Error.NewLinesToBR() + "<hr />";
+
+			Redirect("/Index");
+		}
+
+		[Http(ActionType.Get, "/About", ActionSecurity.Secure, RedirectWithoutAuthorizationTo = "/Logon", Roles = "User|Admin")]
+		public ViewResult About(Authentication auth, IData dc)
+		{
+			FragBag.AboutInfo.appName = ConfigurationManager.AppSettings["title"];
+			FragBag.AboutInfo.author = ConfigurationManager.AppSettings["author"];
+			FragBag.AboutInfo.lastUpdate = ConfigurationManager.AppSettings["modifiedDate"];
+
+			ViewBag.content = RenderFragment("AboutInfo");
+
+			return View();
+		}
+
+		[Http(ActionType.Get, "/Aliases", ActionSecurity.Secure, RedirectWithoutAuthorizationTo = "/Logon", Roles = "User|Admin")]
+		public ViewResult Aliases(Authentication auth, IData dc)
+		{
+			ViewBag.content = string.Join(", ", GetAllRouteAliases().ToArray());
+
+			return View("Index");
+		}
+
+		#region HELPERS
+		private string WikiList(IData dc)
+		{
+			List<WikiTitle> titles = dc.GetAllPageTitles();
+
+			if (titles.Count() == 0)
+			{
+				return "There are no pages in this wiki";
+			}
+			else
+			{
+				List<string> pageList = new List<string>();
+
+				foreach (WikiTitle p in titles)
+				{
+				  string alias = "/" + p.Alias;
+
+				  pageList.Add(string.Format("<a href=\"/{0}\">{1}</a>", p.Alias.ToURLEncodedString(), p.Title));
+				}
+
+				return String.Join(" | ", pageList.ToArray());
+			}
+		}
+
+		private string WikiGroupList(IData dc)
+		{
+			StringBuilder result = new StringBuilder();
+			
+			var p = dc.GetTagsWithPageList();
+
+			if (p.Count() == 0)
+			{
+				return "There are no pages in this wiki";
+			}
+			else
+			{
+				foreach (var r in p)
+				{
+					List<string> pageLinks = new List<string>();
+
+					foreach (string id in r.Item2.Split(','))
+					{
+						var page = dc.GetPage(Convert.ToInt32(id));
+
+						pageLinks.Add(string.Format("<a href=\"/Show/{0}\">{1}</a>", page.ID, page.Title));
+					}
+
+					FragBag.TagGroup.tag = r.Item1 ?? "Untagged";
+					FragBag.TagGroup.pages = string.Join(",&nbsp;", pageLinks);
+
+					result.Append(RenderFragment("TagGroup"));
+				}
+
+				if (result.Length > 0)
+					return result.ToString();
+
+				return null;
+			}
+		}
+
+		private string GetWikiPageTagsAsJSArray(IData dc, WikiPage p)
+		{
+			List<string> mungedNames = new List<string>();
+			List<string> tagNames = dc.GetPageTags(p).Select(x => x.Name).ToList();
+
+			foreach (var t in tagNames)
+			{
+				mungedNames.Add(string.Format("\"{0}\"", t));
+			}
+
+			return string.Format("[{0}]", string.Join(",", mungedNames));
+		}
+		#endregion
+	}
+}

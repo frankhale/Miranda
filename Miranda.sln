@@ -1,0 +1,26 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Express 2012 for Web
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Wiki", "Wiki\Wiki.csproj", "{6DC85836-D402-459F-B0B1-5C38DFB9635D}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Aurora", "Aurora\Aurora.csproj", "{11B49F12-E426-4123-9EE1-B4ACAAC414D4}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{6DC85836-D402-459F-B0B1-5C38DFB9635D}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6DC85836-D402-459F-B0B1-5C38DFB9635D}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6DC85836-D402-459F-B0B1-5C38DFB9635D}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6DC85836-D402-459F-B0B1-5C38DFB9635D}.Release|Any CPU.Build.0 = Release|Any CPU
+		{11B49F12-E426-4123-9EE1-B4ACAAC414D4}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{11B49F12-E426-4123-9EE1-B4ACAAC414D4}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{11B49F12-E426-4123-9EE1-B4ACAAC414D4}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{11B49F12-E426-4123-9EE1-B4ACAAC414D4}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+EndGlobal
