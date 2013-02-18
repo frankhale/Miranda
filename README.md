@@ -7,6 +7,7 @@ License
 -------
 
 Frank Hale <frankhale@gmail.com>
+
 Date: 17 Feburary 2013
 
 License: GNU GPL version 3 <http://www.gnu.org/licenses/gpl-3.0.html>
