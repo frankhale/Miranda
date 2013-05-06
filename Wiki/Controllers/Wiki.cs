@@ -72,12 +72,27 @@ namespace Wiki.Controllers
 		[Http(ActionType.GetOrPost, "/Logon")]
 		public ViewResult Logon(Authentication auth, IData dc, UnameAndPassword upw)
 		{
-			if (auth.Authenticated)
-			{
-				ViewBag.logonForm = "w00t!";
-			}
-			else
-				ViewBag.logonForm = RenderFragment("UserNameAndPasswordForm");
+            if (auth.Authenticated)
+            {
+                WikiUser user = dc.GetUserByUserName(auth.Name);
+
+                if (user != null)
+                {
+                    LogOn(user.UserName, new string[] { "Admin" }, user);
+                    Redirect("/Index");
+                }
+                else
+                {
+                    ViewBag.message = "You Do Not Have To This System";
+                }
+            }
+            else
+            {
+                if (RequestType == "post")
+                    ViewBag.message = "Username and Password are required fields.";
+
+                ViewBag.logonForm = RenderFragment("UserNameAndPasswordForm");
+            }
 
 			return View();
 		}
@@ -164,7 +179,7 @@ namespace Wiki.Controllers
 		public ViewResult Index(Authentication auth, IData dc)
 		{
 			ViewBag.currentUser = CurrentUser.Name;
-			ViewBag.content = WikiList(dc); //WikiGroupList(dc);
+			ViewBag.content = /*WikiList(dc);*/ WikiGroupList(dc);
 
 			return View();
 		}
