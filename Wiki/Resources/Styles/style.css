@@ -143,5 +143,6 @@ textarea
 
 .userNameAndPassword {
     margin: 0 auto; 
-    width: 175px;     
+    width: 155px;  
+    text-align: center;  
 }
