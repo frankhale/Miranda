@@ -69,7 +69,7 @@ namespace Wiki.Controllers
 
 		#region LOGON / LOGOFF
 #if USERPASS
-		[Http(ActionType.GetOrPost, "/Logon")]
+		[Http(ActionType.GetOrPost, "/Logon", RequireAntiForgeryToken=true)]
 		public ViewResult Logon(Authentication auth, IData dc, UnameAndPassword upw)
 		{
             if (auth.Authenticated)
