@@ -91,7 +91,7 @@ namespace Wiki.Controllers
                 if (RequestType == "post")
                     ViewBag.message = "Username and Password are required fields.";
 
-                ViewBag.logonForm = RenderFragment("UserNameAndPasswordForm");
+								ViewBag.logonForm = new HtmlUserNameAndPasswordForm(this, "/Logon", ConfigurationManager.AppSettings["appName"]).ToString(); //RenderFragment("UserNameAndPasswordForm");
             }
 
 			return View();

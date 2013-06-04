@@ -43,6 +43,9 @@
     <Reference Include="EcmaScript.NET">
       <HintPath>..\Libs\EcmaScript.NET.dll</HintPath>
     </Reference>
+    <Reference Include="HtmlAgilityPack">
+      <HintPath>..\Libs\HtmlAgilityPack.dll</HintPath>
+    </Reference>
     <Reference Include="HtmlSanitizationLibrary">
       <HintPath>..\Libs\HtmlSanitizationLibrary.dll</HintPath>
     </Reference>
