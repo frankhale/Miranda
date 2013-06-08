@@ -264,33 +264,6 @@ namespace Wiki.Infrastructure.Core
 		{
 			OnInit += new EventHandler(WikiFrontController_OnInit);
 			OnMissingRouteEvent += new EventHandler<RouteHandlerEventArgs>(WikiFrontController_MissingRouteEventHandler);
-			OnPostRoutesDiscovery += new EventHandler<RouteHandlerEventArgs>(WikiFrontController_OnPostRoutesDiscovery);
-		}
-
-		protected void WikiFrontController_OnPostRoutesDiscovery(object sender, RouteHandlerEventArgs e)
-		{
-			List<object> bindings = GetBindings("Wiki", "Index", "/Index", new[] { typeof(IData) });
-
-			if (bindings != null)
-			{
-				var dc = bindings[1] as IData;
-
-				if (dc != null)
-				{
-					List<WikiTitle> titles = dc.GetAllPageTitles();
-
-					List<string> routeAliases = GetAllRouteAliases();
-
-					foreach (WikiTitle p in titles)
-					{
-						string alias = "/" + p.Alias;
-
-						// Create dynamic routes based on wiki aliases
-						if (!routeAliases.Contains(alias))
-							AddRoute(alias, "Wiki", "Show", p.ID.ToString());
-					}
-				}
-			}
 		}
 
 		protected void WikiFrontController_OnInit(object sender, EventArgs args)
@@ -343,6 +316,31 @@ namespace Wiki.Infrastructure.Core
 					new Authentication(),
 					new MassiveDataConnector()
 			});
+
+			#region SET UP DYNAMIC ROUTES
+			List<object> bindings = GetBindings("Wiki", "Index", "/Index", new[] { typeof(IData) });
+
+			if (bindings != null)
+			{
+				var dc = bindings[1] as IData;
+
+				if (dc != null)
+				{
+					List<WikiTitle> titles = dc.GetAllPageTitles();
+
+					List<string> routeAliases = GetAllRouteAliases();
+
+					foreach (WikiTitle p in titles)
+					{
+						string alias = "/" + p.Alias;
+
+						// Create dynamic routes based on wiki aliases
+						if (!routeAliases.Contains(alias))
+							AddRoute(alias, "Wiki", "Show", p.ID.ToString());
+					}
+				}
+			}
+			#endregion
 		}
 
 		private void WikiFrontController_MissingRouteEventHandler(object sender, RouteHandlerEventArgs e)
@@ -352,10 +350,5 @@ namespace Wiki.Infrastructure.Core
 			if (p.StartsWith("wiki-"))
 				e.RouteInfo = FindRoute(string.Format("/Add/{0}", p));
 		}
-
-		//protected override bool CheckRoles()
-		//{
-		//  return false;
-		//}
 	}
 }
