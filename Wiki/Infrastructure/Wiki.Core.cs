@@ -41,7 +41,10 @@ namespace Wiki.Infrastructure.Core
 	{
 		public static string NewLinesToBR(this string value)
 		{
-			return value.Trim().Replace("\n", "<br />");
+            if (!string.IsNullOrEmpty(value))
+                return value.Trim().Replace("\n", "<br />");
+            else
+                return value;
 		}
 
 		public static string ToURLEncodedString(this string value)

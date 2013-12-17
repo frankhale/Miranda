@@ -2,7 +2,7 @@
 // Miranda is a tiny wiki
 //
 // Frank Hale <frankhale@gmail.com>
-// 17 February 2013
+// 17 December 2013
 //
 
 #region LICENSE - GPL version 3 <http://www.gnu.org/licenses/gpl-3.0.html>
@@ -53,7 +53,7 @@ namespace Wiki.Controllers
 
 		public Wiki()
 		{
-			OnPreActionEvent += new EventHandler<RouteHandlerEventArgs>(Wiki_PreActionEvent);
+			OnPreAction += new EventHandler<RouteHandlerEventArgs>(Wiki_PreActionEvent);
 		}
 
 		void Wiki_PreActionEvent(object sender, RouteHandlerEventArgs e)
@@ -389,8 +389,9 @@ namespace Wiki.Controllers
 
 				Redirect(alias);
 			}
-
-			ViewBag.error = data.Error.NewLinesToBR() + "<hr />";
+            
+            if(!string.IsNullOrEmpty(data.Error))
+			    ViewBag.error = data.Error.NewLinesToBR() + "<hr />";
 
 			Redirect("/Index");
 		}
