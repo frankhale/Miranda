@@ -143,10 +143,10 @@ namespace Wiki.Infrastructure.Core
 				Name = alreadyLoggedIn.Name;
 			}
 
-			if (routeInfo.ActionURLParams.Length > 0)
+			if (routeInfo.ActionUrlParams.Length > 0)
 			{
-				var dc = routeInfo.ActionURLParams.FirstOrDefault(x => x.GetType().GetInterface("IData", true) != null) as IData;
-				var upw = routeInfo.ActionURLParams.FirstOrDefault(x => x != null && x.GetType() == typeof(UnameAndPassword)) as UnameAndPassword;
+				var dc = routeInfo.ActionUrlParams.FirstOrDefault(x => x.GetType().GetInterface("IData", true) != null) as IData;
+				var upw = routeInfo.ActionUrlParams.FirstOrDefault(x => x != null && x.GetType() == typeof(UnameAndPassword)) as UnameAndPassword;
 
 				if (upw != null && dc != null)
 				{

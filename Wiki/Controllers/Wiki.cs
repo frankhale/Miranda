@@ -388,10 +388,11 @@ namespace Wiki.Controllers
 					AddRoute(alias, "Wiki", "Show", p.ID.ToString());
 
 				Redirect(alias);
+				return;
 			}
             
-            if(!string.IsNullOrEmpty(data.Error))
-			    ViewBag.error = data.Error.NewLinesToBR() + "<hr />";
+			if(!string.IsNullOrEmpty(data.Error))
+				ViewBag.error = data.Error.NewLinesToBR() + "<hr />";
 
 			Redirect("/Index");
 		}

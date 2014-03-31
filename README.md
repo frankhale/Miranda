@@ -3,6 +3,8 @@ Miranda - A Tiny Wiki
 
 This is the missing example of how to use Aurora to build a web application.
 
+Updated: 30 March 2014
+
 License
 -------
 
