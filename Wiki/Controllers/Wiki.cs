@@ -2,7 +2,7 @@
 // Miranda is a tiny wiki
 //
 // Frank Hale <frankhale@gmail.com>
-// 17 December 2013
+// 31 March 2014
 //
 
 #region LICENSE - GPL version 3 <http://www.gnu.org/licenses/gpl-3.0.html>
@@ -46,53 +46,52 @@ namespace Wiki.Controllers
 {
 	public class Wiki : Controller
 	{
-		private static Regex matchSpecialCharacters = new Regex("(?:[^a-z0-9 ]|(?<=['\"])s)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
-		private static Regex matchWhitespaces = new Regex(@"\s+", RegexOptions.Compiled);
-		private static Regex csharp = new Regex(@"\[cs\](?<block>[\s\S]+?)\[/cs\]", RegexOptions.Compiled);
-		private static Regex markdown = new Regex(@"\[md\](?<block>[\s\S]+?)\[/md\]", RegexOptions.Compiled);
+		private static readonly Regex MatchSpecialCharacters = new Regex("(?:[^a-z0-9 ]|(?<=['\"])s)", RegexOptions.IgnoreCase | RegexOptions.CultureInvariant | RegexOptions.Compiled);
+		private static readonly Regex MatchWhitespaces = new Regex(@"\s+", RegexOptions.Compiled);
+		private static readonly Regex Csharp = new Regex(@"\[cs\](?<block>[\s\S]+?)\[/cs\]", RegexOptions.Compiled);
+		private static readonly Regex Markdown = new Regex(@"\[md\](?<block>[\s\S]+?)\[/md\]", RegexOptions.Compiled);
 
 		public Wiki()
 		{
-			OnPreAction += new EventHandler<RouteHandlerEventArgs>(Wiki_PreActionEvent);
+			OnPreAction += Wiki_PreActionEvent;
 		}
 
 		void Wiki_PreActionEvent(object sender, RouteHandlerEventArgs e)
 		{
 			ViewBag.appTitle = ConfigurationManager.AppSettings["title"];
 
-			if (CurrentUser != null)
-			{
-				ViewBag.currentUser = CurrentUser.Name;
-				ViewBag.logOff = new HtmlAnchor("/Logoff", "[Logoff]").ToString();
-			}
+			if (CurrentUser == null) return;
+
+			ViewBag.currentUser = CurrentUser.Name;
+			ViewBag.logOff = new HtmlAnchor("/Logoff", "[Logoff]").ToString();
 		}
 
 		#region LOGON / LOGOFF
 #if USERPASS
-		[Http(ActionType.GetOrPost, "/Logon", RequireAntiForgeryToken=true)]
+		[Http(ActionType.GetOrPost, "/Logon", RequireAntiForgeryToken = true)]
 		public ViewResult Logon(Authentication auth, IData dc, UnameAndPassword upw)
 		{
-            if (auth.Authenticated)
-            {
-                WikiUser user = dc.GetUserByUserName(auth.Name);
+			if (auth.Authenticated)
+			{
+				var user = dc.GetUserByUserName(auth.Name);
 
-                if (user != null)
-                {
-                    LogOn(user.UserName, new string[] { "Admin" }, user);
-                    Redirect("/Index");
-                }
-                else
-                {
-                    ViewBag.message = "You Do Not Have To This System";
-                }
-            }
-            else
-            {
-                if (RequestType == "post")
-                    ViewBag.message = "Username and Password are required fields.";
+				if (user != null)
+				{
+					LogOn(user.UserName, new string[] { "Admin" }, user);
+					Redirect("/Index");
+				}
+				else
+				{
+					ViewBag.message = "You do not have access to this system";
+				}
+			}
+			else
+			{
+				if (RequestType == "post")
+					ViewBag.message = "Username and Password are required fields.";
 
-								ViewBag.logonForm = new HtmlUserNameAndPasswordForm(this, "/Logon", ConfigurationManager.AppSettings["appName"]).ToString(); //RenderFragment("UserNameAndPasswordForm");
-            }
+				ViewBag.logonForm = new HtmlUserNameAndPasswordForm(this, "/Logon", ConfigurationManager.AppSettings["appName"]).ToString(); //RenderFragment("UserNameAndPasswordForm");
+			}
 
 			return View();
 		}
@@ -113,7 +112,7 @@ namespace Wiki.Controllers
 				}
 				else
 				{
-					message = "You Do Not Have To This System";
+					message = "You do not have access to this system";
 				}
 			}
 
@@ -158,7 +157,7 @@ namespace Wiki.Controllers
 				}
 			}
 
-			Redirect(string.Format("/Logon?message={0}", "You Do Not Have Access To This System".ToURLEncodedString()));
+			Redirect(string.Format("/Logon?message={0}", "You do not have access to this system".ToURLEncodedString()));
 		}
 #endif
 
@@ -229,8 +228,8 @@ namespace Wiki.Controllers
 
 				p.Body = p.Body.ToHtmlEncodedString();
 
-				MatchCollection csBlocks = csharp.Matches(p.Body);
-				MatchCollection mdBlocks = markdown.Matches(p.Body);
+				var csBlocks = Csharp.Matches(p.Body);
+				var mdBlocks = Markdown.Matches(p.Body);
 
 				#region C# BLOCKS
 				foreach (Match m in csBlocks)
@@ -275,7 +274,7 @@ namespace Wiki.Controllers
 		[Http(ActionType.Get, "/Edit", ActionSecurity.Secure, RedirectWithoutAuthorizationTo = "/Logon", Roles = "Admin")]
 		public ViewResult Edit(Authentication auth, IData dc, int id)
 		{
-			WikiPage p = dc.GetPage(id);
+			var p = dc.GetPage(id);
 
 			if (p != null)
 			{
@@ -295,11 +294,11 @@ namespace Wiki.Controllers
 		[Http(ActionType.Get, "/Delete", ActionSecurity.Secure, RedirectWithoutAuthorizationTo = "/Logon", Roles = "Admin")]
 		public void Delete(Authentication auth, IData dc, int id)
 		{
-			WikiPage p = dc.GetPage(id);
+			var p = dc.GetPage(id);
 
 			if (p != null)
 			{
-				string alias = "/" + p.Alias;
+				var alias = "/" + p.Alias;
 
 				if (GetAllRouteAliases().Contains(alias))
 					RemoveRoute(alias);
@@ -315,11 +314,10 @@ namespace Wiki.Controllers
 		{
 			if (data.IsValid)
 			{
-				WikiUser u = CurrentUser.ArcheType as WikiUser;
+				var u = CurrentUser.ArcheType as WikiUser;
+				var edit = false;
 
-				bool edit = false;
-
-				WikiPage p = null;
+				WikiPage p;
 
 				if (data.ID != null)
 				{
@@ -333,7 +331,7 @@ namespace Wiki.Controllers
 				else
 					p = new WikiPage();
 
-				p.AuthorID = u.ID;
+				if (u != null) p.AuthorID = u.ID;
 				p.Body = data.Data;
 				p.ModifiedOn = DateTime.Now;
 				p.Title = data.Title;
@@ -344,8 +342,8 @@ namespace Wiki.Controllers
 
 					Func<string, string> aliasify = delegate(string s)
 					{
-						s = matchSpecialCharacters.Replace(s, string.Empty).Trim();
-						s = matchWhitespaces.Replace(s, "-");
+						s = MatchSpecialCharacters.Replace(s, string.Empty).Trim();
+						s = MatchWhitespaces.Replace(s, "-");
 
 						return s;
 					};
@@ -362,14 +360,14 @@ namespace Wiki.Controllers
 
 				if (!string.IsNullOrEmpty(data.Tags))
 				{
-					List<string> allTags = dc.GetAllTags().Select(x => x.Name).ToList();
-					List<string> incomingTags = data.Tags.Split(',').ToList();
+					var allTags = dc.GetAllTags().Select(x => x.Name).ToList();
+					var incomingTags = data.Tags.Split(',').ToList();
 
-					if (incomingTags.Count() > 0)
+					if (incomingTags.Any())
 					{
-						var tagDiffs = (allTags.Count() > 0) ? incomingTags.Except(allTags) : incomingTags;
+						var tagDiffs = (allTags.Any()) ? incomingTags.Except(allTags) : incomingTags;
 
-						if (tagDiffs.Count() > 0)
+						if (tagDiffs.Any())
 						{
 							foreach (var t in tagDiffs)
 								dc.AddTag(t);
@@ -382,7 +380,7 @@ namespace Wiki.Controllers
 					}
 				}
 
-				string alias = "/" + p.Alias;
+				var alias = "/" + p.Alias;
 
 				if (!GetAllRouteAliases().Contains(alias))
 					AddRoute(alias, "Wiki", "Show", p.ID.ToString());
@@ -390,8 +388,8 @@ namespace Wiki.Controllers
 				Redirect(alias);
 				return;
 			}
-            
-			if(!string.IsNullOrEmpty(data.Error))
+
+			if (!string.IsNullOrEmpty(data.Error))
 				ViewBag.error = data.Error.NewLinesToBR() + "<hr />";
 
 			Redirect("/Index");
@@ -420,34 +418,26 @@ namespace Wiki.Controllers
 		#region HELPERS
 		private string WikiList(IData dc)
 		{
-			List<WikiTitle> titles = dc.GetAllPageTitles();
+			var titles = dc.GetAllPageTitles();
 
-			if (titles.Count() == 0)
+			if (!titles.Any())
 			{
 				return "There are no pages in this wiki";
 			}
 			else
 			{
-				List<string> pageList = new List<string>();
-
-				foreach (WikiTitle p in titles)
-				{
-				  string alias = "/" + p.Alias;
-
-				  pageList.Add(string.Format("<a href=\"/{0}\">{1}</a>", p.Alias.ToURLEncodedString(), p.Title));
-				}
-
-				return String.Join(" | ", pageList.ToArray());
+				return String.Join(" | ", (from p in titles let alias = "/" + p.Alias 
+																	 select string.Format("<a href=\"/{0}\">{1}</a>", p.Alias.ToURLEncodedString(), p.Title)).ToArray());
 			}
 		}
 
 		private string WikiGroupList(IData dc)
 		{
-			StringBuilder result = new StringBuilder();
-			
+			var result = new StringBuilder();
+
 			var p = dc.GetTagsWithPageList();
 
-			if (p.Count() == 0)
+			if (!p.Any())
 			{
 				return "There are no pages in this wiki";
 			}
@@ -455,14 +445,9 @@ namespace Wiki.Controllers
 			{
 				foreach (var r in p)
 				{
-					List<string> pageLinks = new List<string>();
-
-					foreach (string id in r.Item2.Split(','))
-					{
-						var page = dc.GetPage(Convert.ToInt32(id));
-
-						pageLinks.Add(string.Format("<a href=\"/Show/{0}\">{1}</a>", page.ID, page.Title));
-					}
+					var pageLinks = r.Item2.Split(',').Select(id => 
+						dc.GetPage(Convert.ToInt32(id))).Select(page => 
+							string.Format("<a href=\"/Show/{0}\">{1}</a>", page.ID, page.Title)).ToList();
 
 					FragBag.TagGroup.tag = r.Item1 ?? "Untagged";
 					FragBag.TagGroup.pages = string.Join(",&nbsp;", pageLinks);
@@ -479,13 +464,8 @@ namespace Wiki.Controllers
 
 		private string GetWikiPageTagsAsJSArray(IData dc, WikiPage p)
 		{
-			List<string> mungedNames = new List<string>();
-			List<string> tagNames = dc.GetPageTags(p).Select(x => x.Name).ToList();
-
-			foreach (var t in tagNames)
-			{
-				mungedNames.Add(string.Format("\"{0}\"", t));
-			}
+			var tagNames = dc.GetPageTags(p).Select(x => x.Name).ToList();
+			var mungedNames = tagNames.Select(t => string.Format("\"{0}\"", t)).ToList();
 
 			return string.Format("[{0}]", string.Join(",", mungedNames));
 		}
